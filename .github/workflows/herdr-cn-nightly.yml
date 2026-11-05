@@ -1,8 +1,11 @@
 name: Herdr Chinese Nightly
 on:
   schedule:
-    - cron: "43 7,19 * * *"   # 每天 2 次（07/19 UTC），跟随上游 master 最新提交
+    - cron: "43 5,17 * * *"   # 每天 2 次（07/19 UTC），跟随上游 master 最新提交
   workflow_dispatch:
+concurrency:
+  group: herdr-cn-nightly
+  cancel-in-progress: false
 permissions:
   contents: write
 env:

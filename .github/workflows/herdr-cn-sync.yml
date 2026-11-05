@@ -3,6 +3,9 @@ on:
   schedule:
     - cron: "7 0,6,12,18 * * *"   # 每 6 小时（00/06/12/18 UTC）:07，错开其他流水线
   workflow_dispatch:
+concurrency:
+  group: herdr-cn-sync
+  cancel-in-progress: false
 permissions:
   contents: write
 jobs:

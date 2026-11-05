@@ -3,6 +3,9 @@ on:
   schedule:
     - cron: "17 3 * * *"   # 每天 03:17，避开备份/其他流水线
   workflow_dispatch:
+concurrency:
+  group: herdr-cn-release
+  cancel-in-progress: false
 permissions:
   contents: write
 env:
