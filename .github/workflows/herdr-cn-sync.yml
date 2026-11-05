@@ -1,7 +1,7 @@
 name: Herdr Sync Upstream
 on:
   schedule:
-    - cron: "22 * * * *"   # 每小时 :22，错开其他流水线
+    - cron: "7 0,6,12,18 * * *"   # 每 6 小时（00/06/12/18 UTC）:07，错开其他流水线
   workflow_dispatch:
 permissions:
   contents: write
