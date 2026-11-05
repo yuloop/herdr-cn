@@ -1,7 +1,7 @@
 name: Herdr Sync Upstream
 on:
   schedule:
-    - cron: "7 0,6,12,18 * * *"   # 每 6 小时（00/06/12/18 UTC）:07，错开其他流水线
+    - cron: "7 0,8,16 * * *"   # 每天 3 次（00/08/16 UTC）:07；上游 30 天仅 ~64 次提交
   workflow_dispatch:
 concurrency:
   group: herdr-cn-sync
