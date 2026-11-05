@@ -34,8 +34,23 @@ jobs:
           # GITHUB_TOKEN 只有 contents: write，没有 workflows 权限，所以全部还原为本仓库版本
           # 先移除全部 unmerged 条目（modify/delete 冲突会让 restore 报错），再整体还原 workflow 目录
           git ls-files -u | awk '{print $4}' | sort -u | grep '^\.github/workflows/' | xargs -r git rm -f -q || true
+          # 还原为本仓库版本后，还要删掉上游「新增」的 workflow 文件：
+          # `git checkout HEAD -- <dir>` 只还原 HEAD 里存在的文件，不会删掉 index 里多出来的新文件。
+          # 上游新增 stale-close.yml 就是这样被带进提交的，push 被 GitHub 拒绝。
           git checkout -q HEAD -- .github/workflows || true
+          git ls-files .github/workflows | while IFS= read -r f; do
+            if ! git cat-file -e "HEAD:$f" 2>/dev/null; then
+              echo "移除上游新增的 workflow: $f"
+              git rm -f -q "$f"
+            fi
+          done
           git add .github/workflows
+          # 兜底自检：暂存区里的 .github/workflows 必须与 HEAD 完全一致，否则不许 push
+          if ! git diff --cached --quiet HEAD -- .github/workflows; then
+            echo "ERROR: .github/workflows 仍与 HEAD 有差异，拒绝 push"
+            git diff --cached HEAD -- .github/workflows --name-status | head -20
+            exit 3
+          fi
           # 检查是否还有其他未解决冲突（非 workflow 文件），有则报错停止
           if git ls-files -u | grep -v "^\.github/workflows/" | grep -q .; then
             echo "存在非 workflow 文件冲突，需人工处理"
