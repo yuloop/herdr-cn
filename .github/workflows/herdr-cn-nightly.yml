@@ -1,7 +1,7 @@
 name: Herdr Chinese Nightly
 on:
   schedule:
-    - cron: "47 2,8,14,20 * * *"   # 每天 4 次，跟随上游 master 最新提交
+    - cron: "49 2,8,14,20 * * *"   # 每天 4 次，跟随上游 master 最新提交
   workflow_dispatch:
 permissions:
   contents: write
