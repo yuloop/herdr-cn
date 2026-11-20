@@ -1156,7 +1156,7 @@ fn render_pane_move_overlay(
             row_hits.push((rect, ix));
             let st = if ix == m.selected {
                 Style::default()
-                    .fg(contrast(p))
+                    .fg(p.accent_foreground())
                     .bg(p.accent)
                     .add_modifier(Modifier::BOLD)
             } else {
