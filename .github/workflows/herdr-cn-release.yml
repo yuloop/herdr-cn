@@ -225,16 +225,10 @@ jobs:
           make_latest: true
           fail_on_unmatched_files: true
 
-      - name: Delete outdated stable releases
+      - name: Prune outdated releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KEEP: "5"
-        run: |
-          # 带日期的正式版只保留最近 $KEEP 个；不带日期的历史版本（v0.9.x-cn）保留不动
-          gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate \
-            --jq '.[] | select(.prerelease == false and .draft == false) | select(.tag_name | test("-cn-[0-9]{8}$")) | .id' \
-            | tail -n +$((KEEP + 1)) \
-            | while read -r id; do
-                echo "deleting outdated stable release id=$id"
-                gh api -X DELETE "repos/${{ github.repository }}/releases/$id" || echo "delete failed id=$id"
-              done
+          REPO: ${{ github.repository }}
+          CURRENT_VER: ${{ needs.resolve.outputs.ver }}
+          KEEP_DATED: "5"
+        run: python3 .github/scripts/prune_releases.py
