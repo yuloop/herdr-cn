@@ -73,6 +73,8 @@ jobs:
           fetch-depth: 0
       - name: Resolve upstream version
         id: res
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git remote add upstream "https://github.com/herdrdev/herdr.git" || true
@@ -81,29 +83,36 @@ jobs:
           echo "upstream latest tag: ${UP_TAG:-none}"
           if [ -z "$UP_TAG" ]; then echo "should_build=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           VER="${UP_TAG#v}"
-          # 汉化版 tag：v<ver>-cn
-          CN_TAG="v${VER}-cn"
-          # workflow_dispatch = 手动强制构建（跳过检查，直接构建并发布）
+          UP_COMMIT=$(git rev-parse upstream/master)
+          SHA12=${UP_COMMIT:0:12}
+          DATE=$(date -u +%Y%m%d)
+          # 正式版 tag 带日期：上游版本号在两次 bump 之间常不变，只按版本号发版会长期卡在旧 tag
+          TAG="v${VER}-cn-${DATE}"
+          echo "上游版本 ${VER}，上游 master ${UP_COMMIT}"
+          echo "本次正式版 tag：${TAG}"
+
+          # 已发布过的正式版 body 里有 upstream-commit 标记；标记一致说明代码没变，跳过
+          PREV=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=30" \
+                   --jq '.[] | select(.prerelease == false and .draft == false) | .body' 2>/dev/null \
+                 | grep -o 'upstream-commit: [0-9a-f]\{40\}' | awk '{print $2}' || true)
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "手动触发：强制构建 ${CN_TAG}"
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            echo "tag=${CN_TAG}" >> "$GITHUB_OUTPUT"
-            echo "ver=${VER}" >> "$GITHUB_OUTPUT"
+            echo "手动触发：强制构建 ${TAG}"
+          elif printf '%s\n' "$PREV" | grep -qx "${UP_COMMIT}"; then
+            echo "上游 master ${SHA12} 已发布过正式版，跳过"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          elif git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "今日 tag ${TAG} 已存在，跳过（避免同一天重复发版）"
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # 已发过且上游没更新 → 跳过（防止每天重复构建覆盖）
-          if git rev-parse -q --verify "refs/tags/${CN_TAG}" >/dev/null 2>&1; then
-            echo "汉化 tag ${CN_TAG} 已存在，检查上游是否更新"
-            CARGO_VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-            if [ "${VER}" = "${CARGO_VER}" ]; then
-              echo "上游无新版本，跳过"
-              echo "should_build=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
+
           echo "should_build=true" >> "$GITHUB_OUTPUT"
-          echo "tag=${CN_TAG}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "ver=${VER}" >> "$GITHUB_OUTPUT"
+          echo "sha12=${SHA12}" >> "$GITHUB_OUTPUT"
+          echo "commit=${UP_COMMIT}" >> "$GITHUB_OUTPUT"
   build:
     needs: resolve
     if: needs.resolve.outputs.should_build == 'true'
@@ -200,11 +209,28 @@ jobs:
           tag_name: ${{ needs.resolve.outputs.tag }}
           name: herdr 汉化版 ${{ needs.resolve.outputs.tag }}
           body: |
-            herdr 汉化版 ${{ needs.resolve.outputs.tag }}（基于上游 v${{ needs.resolve.outputs.ver }}）
+            herdr 汉化版 ${{ needs.resolve.outputs.tag }}（基于上游 v${{ needs.resolve.outputs.ver }}，上游 master `${{ needs.resolve.outputs.sha12 }}`）
 
+            - 构建时间：${{ github.run_started_at }}（UTC）
             - Linux x64 / Windows x64 双平台预编译
             - 安装：`herdr cn-install` 或下载对应压缩包解压
+
+            <!-- upstream-commit: ${{ needs.resolve.outputs.commit }} -->
           files: dist/*.tar.gz,dist/*.zip,dist/SHA256SUMS
           overwrite_files: true
           make_latest: true
           fail_on_unmatched_files: true
+
+      - name: Delete outdated stable releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP: "5"
+        run: |
+          # 带日期的正式版只保留最近 $KEEP 个；不带日期的历史版本（v0.9.x-cn）保留不动
+          gh api "repos/${{ github.repository }}/releases?per_page=100" --paginate \
+            --jq '.[] | select(.prerelease == false and .draft == false) | select(.tag_name | test("-cn-[0-9]{8}$")) | .id' \
+            | tail -n +$((KEEP + 1)) \
+            | while read -r id; do
+                echo "deleting outdated stable release id=$id"
+                gh api -X DELETE "repos/${{ github.repository }}/releases/$id" || echo "delete failed id=$id"
+              done
