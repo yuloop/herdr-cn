@@ -67,6 +67,9 @@ jobs:
       should_build: ${{ steps.res.outputs.should_build }}
       tag: ${{ steps.res.outputs.tag }}
       ver: ${{ steps.res.outputs.ver }}
+      sha12: ${{ steps.res.outputs.sha12 }}
+      commit: ${{ steps.res.outputs.commit }}
+      date: ${{ steps.res.outputs.date }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -113,6 +116,7 @@ jobs:
           echo "ver=${VER}" >> "$GITHUB_OUTPUT"
           echo "sha12=${SHA12}" >> "$GITHUB_OUTPUT"
           echo "commit=${UP_COMMIT}" >> "$GITHUB_OUTPUT"
+          echo "date=${DATE}" >> "$GITHUB_OUTPUT"
   build:
     needs: resolve
     if: needs.resolve.outputs.should_build == 'true'
@@ -211,7 +215,7 @@ jobs:
           body: |
             herdr 汉化版 ${{ needs.resolve.outputs.tag }}（基于上游 v${{ needs.resolve.outputs.ver }}，上游 master `${{ needs.resolve.outputs.sha12 }}`）
 
-            - 构建时间：${{ github.run_started_at }}（UTC）
+            - 构建日期：`${{ needs.resolve.outputs.date }}`（UTC）
             - Linux x64 / Windows x64 双平台预编译
             - 安装：`herdr cn-install` 或下载对应压缩包解压
 
